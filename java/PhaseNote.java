@@ -63,6 +63,21 @@ public class PhaseNote {
                     System.exit(1);
                 }
             }
+            case "edit" -> {
+                if (args.length < 2) {
+                    System.err.println("Error: No note number provided.");
+                    System.err.println("Usage: java PhaseNote edit [note-number]");
+                    System.exit(1);
+                }
+                try {
+                    int noteNumber = Integer.parseInt(args[1]);
+                    boolean success = editNote(NOTES_DIR, noteNumber);
+                    System.exit(success ? 0 : 1);
+                } catch (NumberFormatException e) {
+                    System.err.println("Error: Invalid note number '" + args[1] + "'");
+                    System.exit(1);
+                }
+            }
             default -> {
                 System.err.println("Error: Unknown command '" + command + "'");
                 System.err.println("Try 'java PhaseNote help' for more information.");
@@ -287,6 +302,71 @@ public class PhaseNote {
         }
     }
 
+    // editNote
+    private static boolean editNote(Path baseDir, int noteNumber) {
+        if (!Files.exists(baseDir)) {
+            System.err.println("Error: Notes directory does not exist: " + baseDir);
+            return false;
+        }
+
+        Path searchPath = Files.exists(baseDir.resolve("notes")) ? baseDir.resolve("notes") : baseDir;
+        List<Path> noteFiles;
+
+        try (Stream<Path> walk = Files.walk(searchPath, 1)) {
+            noteFiles = walk
+                    .filter(Files::isRegularFile)
+                    .filter(p -> {
+                        String name = p.getFileName().toString();
+                        return name.endsWith(".md") || name.endsWith(".note") || name.endsWith(".txt");
+                    })
+                    .sorted()
+                    .collect(Collectors.toList());
+        } catch (IOException e) {
+            System.err.println("Error reading notes directory: " + e.getMessage());
+            return false;
+        }
+
+        // Check if note number is valid
+        if (noteNumber < 1 || noteNumber > noteFiles.size()) {
+            System.err.println("Error: Note number " + noteNumber + " not found. Valid range: 1-" + noteFiles.size());
+            return false;
+        }
+
+        try {
+            Path notePath = noteFiles.get(noteNumber - 1);
+            
+            // Read current content
+            String currentContent = Files.readString(notePath);
+            System.out.println("Current note content:");
+            System.out.println("=".repeat(60));
+            System.out.println(currentContent);
+            System.out.println("=".repeat(60));
+            
+            // Open editor for user input
+            System.out.print("Enter new content (or type 'quit' on a new line to cancel):\n");
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            StringBuilder newContent = new StringBuilder();
+            String line;
+            
+            while (scanner.hasNextLine()) {
+                line = scanner.nextLine();
+                if (line.equals("quit")) {
+                    System.out.println("Edit cancelled.");
+                    return false;
+                }
+                newContent.append(line).append("\n");
+            }
+            
+            // Write updated content back to file
+            Files.writeString(notePath, newContent.toString());
+            System.out.println("Note updated successfully: " + notePath.getFileName());
+            return true;
+        } catch (IOException e) {
+            System.err.println("Error editing note: " + e.getMessage());
+            return false;
+        }
+    }
+
     private static void showHelp() {
         String helpText = String.format("""
             Future Proof Notes Manager v0.1
@@ -298,11 +378,13 @@ public class PhaseNote {
               list    - List all notes in the notes directory
               create  - Create a new note
               read    - Read a note by number (use list to see note numbers)
+              edit    - Edit a note by number (use list to see note numbers)
               delete  - Delete a note by number (use list to see note numbers)
             
             Examples:
               java PhaseNote list
               java PhaseNote read 1
+              java PhaseNote edit 1
               java PhaseNote delete 1
             
             Notes directory: %s
