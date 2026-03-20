@@ -33,6 +33,21 @@ public class PhaseNote {
                 boolean success = createNote(NOTES_DIR);
                 System.exit(success ? 0 : 1);
             }
+            case "read" -> {
+                if (args.length < 2) {
+                    System.err.println("Error: No note number provided.");
+                    System.err.println("Usage: java PhaseNote read [note-number]");
+                    System.exit(1);
+                }
+                try {
+                    int noteNumber = Integer.parseInt(args[1]);
+                    boolean success = readNote(NOTES_DIR, noteNumber);
+                    System.exit(success ? 0 : 1);
+                } catch (NumberFormatException e) {
+                    System.err.println("Error: Invalid note number '" + args[1] + "'");
+                    System.exit(1);
+                }
+            }
             default -> {
                 System.err.println("Error: Unknown command '" + command + "'");
                 System.err.println("Try 'java PhaseNote help' for more information.");
@@ -113,13 +128,14 @@ public class PhaseNote {
         System.out.println("Notes in " + baseDir + ":");
         System.out.println("=".repeat(60));
 
-        for (Path file : noteFiles) {
+        for (int i = 0; i < noteFiles.size(); i++) {
+            Path file = noteFiles.get(i);
             Map<String, String> metadata = parseYamlHeader(file);
             String title = metadata.getOrDefault("title", file.getFileName().toString());
             String created = metadata.getOrDefault("created", "N/A");
             String tags = metadata.getOrDefault("tags", "");
 
-            System.out.println("\n" + file.getFileName());
+            System.out.println("\n[" + (i + 1) + "] " + file.getFileName());
             System.out.println("  Title: " + title);
             if (!"N/A".equals(created)) System.out.println("  Created: " + created);
             if (!tags.isEmpty()) System.out.println("  Tags: " + tags);
@@ -173,6 +189,48 @@ public class PhaseNote {
             return false;
         }
     } 
+
+    // readNote 
+    private static boolean readNote(Path baseDir, int noteNumber) {
+        if (!Files.exists(baseDir)) {
+            System.err.println("Error: Notes directory does not exist: " + baseDir);
+            return false;
+        }
+
+        Path searchPath = Files.exists(baseDir.resolve("notes")) ? baseDir.resolve("notes") : baseDir;
+        List<Path> noteFiles;
+
+        try (Stream<Path> walk = Files.walk(searchPath, 1)) {
+            noteFiles = walk
+                    .filter(Files::isRegularFile)
+                    .filter(p -> {
+                        String name = p.getFileName().toString();
+                        return name.endsWith(".md") || name.endsWith(".note") || name.endsWith(".txt");
+                    })
+                    .sorted()
+                    .collect(Collectors.toList());
+        } catch (IOException e) {
+            System.err.println("Error reading notes directory: " + e.getMessage());
+            return false;
+        }
+
+        // Check if note number is valid
+        if (noteNumber < 1 || noteNumber > noteFiles.size()) {
+            System.err.println("Error: Note number " + noteNumber + " not found. Valid range: 1-" + noteFiles.size());
+            return false;
+        }
+
+        try {
+            Path notePath = noteFiles.get(noteNumber - 1);
+            String content = Files.readString(notePath);
+            System.out.println(content);
+            return true;
+        } catch (IOException e) {
+            System.err.println("Error reading note: " + e.getMessage());
+            return false;
+        }
+    }
+
     private static void showHelp() {
         String helpText = String.format("""
             Future Proof Notes Manager v0.1
@@ -182,6 +240,12 @@ public class PhaseNote {
             Available commands:
               help    - Display this help information
               list    - List all notes in the notes directory
+              create  - Create a new note
+              read    - Read a note by number (use list to see note numbers)
+            
+            Examples:
+              java PhaseNote list
+              java PhaseNote read 1
             
             Notes directory: %s
             
