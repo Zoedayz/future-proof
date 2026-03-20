@@ -29,6 +29,10 @@ public class PhaseNote {
                 boolean success = listNotes(NOTES_DIR);
                 System.exit(success ? 0 : 1);
             }
+            case "create" -> {
+                boolean success = createNote(NOTES_DIR);
+                System.exit(success ? 0 : 1);
+            }
             default -> {
                 System.err.println("Error: Unknown command '" + command + "'");
                 System.err.println("Try 'java PhaseNote help' for more information.");
@@ -125,6 +129,50 @@ public class PhaseNote {
         return true;
     }
 
+
+    // createNote
+    private static boolean createNote(Path baseDir) {
+        if (!Files.exists(baseDir)) {
+            System.err.println("Error: Notes directory does not exist: " + baseDir);
+            System.err.println("Create it with: mkdir -p ~/.notes/notes");
+            return false;
+        }
+
+        Path notesPath = baseDir.resolve("notes");
+        if (!Files.exists(notesPath)) {
+            try {
+                Files.createDirectories(notesPath);
+            } catch (IOException e) {
+                System.err.println("Error creating notes directory: " + e.getMessage());
+                return false;
+            }
+        }
+
+        try {
+            // Create a new note with timestamp-based filename
+            String timestamp = java.time.LocalDateTime.now().format(
+                    java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
+            String filename = "note_" + timestamp + ".md";
+            Path newNotePath = notesPath.resolve(filename);
+
+            // Create note content with YAML header
+            String noteContent = String.format("""
+                ---
+                title: New Note
+                created: %s
+                tags: 
+                ---
+                
+                """, java.time.LocalDate.now().toString());
+
+            Files.writeString(newNotePath, noteContent);
+            System.out.println("Note created successfully: " + newNotePath);
+            return true;
+        } catch (IOException e) {
+            System.err.println("Error creating note: " + e.getMessage());
+            return false;
+        }
+    } 
     private static void showHelp() {
         String helpText = String.format("""
             Future Proof Notes Manager v0.1
