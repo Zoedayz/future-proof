@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.stream.Stream;
 import java.util.stream.Collectors;
 
+// Start of Phase 1 Notes
 public class PhaseNote {
     private static final Path NOTES_DIR = Path.of(System.getProperty("user.home"), ".notes");
 
